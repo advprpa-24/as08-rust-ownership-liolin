@@ -26,7 +26,7 @@ pub fn eval(term: &Term) -> Term {
             match term_l {
                 Term::Var(_) => Term::App(Box::new(term_l), Box::new(term_r)),
                 Term::Abs(identifier, term) => substitute(&term, &identifier, &term_r),
-                Term::App(term_l, term_r) => todo!(),
+                Term::App(_term_l, _term_r) => todo!(),
             }
         }
     }
@@ -203,4 +203,24 @@ mod tests {
         let expected = var("a");
         assert_eq!(evaluated, expected);
     }
+
+    #[test]
+    fn test_eval_more_complex_application2() {
+        let term = app(
+            app(abs("x", var("x")), var("a")),
+            app(abs("x", var("x")), var("b")),
+        );
+        let evaluated = eval(&term);
+        let expected = app(var("a"), var("b"));
+        assert_eq!(evaluated, expected);
+    }
+
+    // #[test]
+    // fn test_eval_y_combinator() {
+    //     let term_1 = abs("x", app(var("f"), app(var("x"), var("x"))));
+    //     let term = app(abs("f", term_1.clone()), term_1);
+    //     let evaluated = eval(&term);
+    //     let expected = app(var("a"), var("b"));
+    //     assert_eq!(evaluated, expected);
+    // }
 }
