@@ -18,15 +18,16 @@ use std::collections::HashSet;
 ///   `(λx. (λy. x)) a b` evaluates to `a`.
 pub fn eval(term: &Term) -> Term {
     match term {
-        Term::Var(identifier) => Term::Var(identifier.into()),
-        Term::Abs(identifier, term) => Term::Abs(identifier.into(), Box::new(eval(term))),
+        Term::Var(identifier) => var(identifier),
+        Term::Abs(identifier, term) => abs(identifier, eval(term)),
         Term::App(term_l, term_r) => {
-            let term_l = eval(term_l);
-            let term_r = eval(term_r);
-            match term_l {
-                Term::Var(_) => Term::App(Box::new(term_l), Box::new(term_r)),
-                Term::Abs(identifier, term) => substitute(&term, &identifier, &term_r),
-                Term::App(_term_l, _term_r) => todo!(),
+            let l = eval(term_l);
+            let r = eval(term_r);
+
+            if let Term::Abs(var, body) = l {
+                substitute(&body, &var, &r)
+            } else {
+                app(l, r)
             }
         }
     }
@@ -190,6 +191,7 @@ mod tests {
 
     #[test]
     fn test_eval_complex_application() {
+        // (λx. (λy. y) x) z -> z
         let term = app(abs("x", app(abs("y", var("y")), var("x"))), var("z"));
         let evaluated = eval(&term);
         let expected = var("z");
@@ -198,6 +200,7 @@ mod tests {
 
     #[test]
     fn test_eval_more_complex_application() {
+        // (λx. λy. x) a b -> a
         let term = app(app(abs("x", abs("y", var("x"))), var("a")), var("b"));
         let evaluated = eval(&term);
         let expected = var("a");
@@ -206,6 +209,7 @@ mod tests {
 
     #[test]
     fn test_eval_more_complex_application2() {
+        // (λx. x) a ((λx. x) b)
         let term = app(
             app(abs("x", var("x")), var("a")),
             app(abs("x", var("x")), var("b")),
@@ -215,12 +219,34 @@ mod tests {
         assert_eq!(evaluated, expected);
     }
 
-    // #[test]
-    // fn test_eval_y_combinator() {
-    //     let term_1 = abs("x", app(var("f"), app(var("x"), var("x"))));
-    //     let term = app(abs("f", term_1.clone()), term_1);
-    //     let evaluated = eval(&term);
-    //     let expected = app(var("a"), var("b"));
-    //     assert_eq!(evaluated, expected);
-    // }
+    #[test]
+    fn test_three_arguments() {
+        let term = app(
+            app(
+                app(abs("x", abs("y", abs("z", var("y")))), var("a")),
+                var("b"),
+            ),
+            var("c"),
+        );
+        let evaluated = eval(&term);
+        let expected = var("b");
+        assert_eq!(evaluated, expected);
+    }
+
+    #[test]
+    fn test_y_combinator() {
+        // λf.    (λx. f (x x)) (λx. f (x x))
+        // ->
+        // λf. f ((λx. f (x x)) (λx. f (x x)))
+        let tmp = abs("x", app(var("f"), app(var("x"), var("x"))));
+        let term = abs("f", app(tmp.clone(), tmp));
+
+        let x_abs = abs("x", app(var("f"), app(var("x"), var("x"))));
+        let f_app = app(var("f"), app(x_abs.clone(), x_abs));
+        let f_abs = abs("f", f_app);
+
+        let expected = f_abs;
+        let evaluated = eval(&term);
+        assert_eq!(evaluated, expected);
+    }
 }

@@ -3,17 +3,10 @@ use lc::term::*;
 
 /// Driver code to run the lambda calculus evaluator.
 fn main() {
-    // (λx. x y) z
-    let input = app(abs("x", app(var("x"), var("y"))), var("z"));
-
-    let app_x = app(var("x"), var("x"));
-    let app_f = app(var("f"), app_x);
-    let abs_x = abs("x", app_f);
-    let app_xx = app(abs_x.clone(), abs_x);
-    let abs_f = abs("f", app_xx);
-    let input = app(abs_f, var("g"));
+    let tmp = abs("x", app(var("f"), app(var("x"), var("x"))));
+    let input = abs("f", app(tmp.clone(), tmp));
 
     println!("Original term: {}", input);
-    let result = eval(&input);
+    let result = eval(&eval(&input));
     println!("Evaluated term: {}", result);
 }

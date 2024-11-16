@@ -4,18 +4,33 @@ use std::fmt;
 /// Pretty prints a term.
 pub fn pretty_print(term: &Term) -> String {
     match term {
-        Term::Var(identifier) => identifier.into(),
-        Term::Abs(identifier, term) => format!("(λ{identifier}. {term})"),
-        Term::App(term_l, term_r) => format!("({term_l} {term_r})"),
+        term @ Term::Var(_) => pretty_print_precedenc(term, 10),
+        term @ Term::Abs(_, _) => pretty_print_precedenc(term, 2),
+        term @ Term::App(_, _) => pretty_print_precedenc(term, 3),
     }
 }
 
-fn pretty_print_precedenc(term: &Term, precedence: u32) -> String {
+// For how this works, see https://stackoverflow.com/questions/27471937/showsprec-and-operator-precedences/43639618#43639618
+fn pretty_print_precedenc(term: &Term, p: u32) -> String {
     match term {
         Term::Var(identifier) => identifier.into(),
         Term::Abs(identifier, term) => {
-            if precedence > 
+            let r = pretty_print_precedenc(term, 3);
+            show_paren(p > 3, format!("λ{identifier}. {r}"))
         }
+        Term::App(l, r) => {
+            let l = pretty_print_precedenc(l, 4);
+            let r = pretty_print_precedenc(r, 5);
+            show_paren(p > 4, format!("{l} {r}"))
+        }
+    }
+}
+
+fn show_paren(show: bool, s: String) -> String {
+    if show {
+        format!("({s})")
+    } else {
+        s
     }
 }
 
@@ -31,7 +46,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pp_var() {
+    fn test_single_var() {
         let term = var("x");
         let expected = "x";
         let pp = pretty_print(&term);
@@ -39,15 +54,15 @@ mod tests {
     }
 
     #[test]
-    fn test_pp_abs() {
+    fn test_single_abs() {
         let term = abs("x", var("x"));
-        let expected = "(λx. x)";
+        let expected = "λx. x";
         let pp = pretty_print(&term);
         assert_eq!(pp, expected);
     }
 
     #[test]
-    fn test_pp_app() {
+    fn test_single_app() {
         let term = app(abs("x", var("x")), var("y"));
         let expected = "(λx. x) y";
         let pp = pretty_print(&term);
@@ -55,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pp_complex() {
+    fn test_complex() {
         let term = app(abs("x", app(var("x"), var("y"))), var("z"));
         let expected = "(λx. x y) z";
         let pp = pretty_print(&term);
@@ -63,9 +78,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pp_more_complex() {
+    fn test_more_complex() {
         let term = app(app(abs("x", abs("y", var("x"))), var("a")), var("b"));
-        let expected = "(λx. (λy. x)) a b";
+        let expected = "(λx. λy. x) a b";
         let pp = pretty_print(&term);
         assert_eq!(pp, expected);
     }
@@ -73,26 +88,49 @@ mod tests {
     #[test]
     fn test_two_arguments() {
         let term = abs("x", abs("y", app(var("x"), var("y"))));
-        let expected = "(λx. (λy. x y))";
+        let expected = "λx. λy. x y";
         let pp = pretty_print(&term);
         assert_eq!(pp, expected);
     }
 
     #[test]
     fn test_three_arguments() {
-        let term = abs(
-            "x",
-            abs("y", abs("z", app(var("x"), app(var("y"), var("z"))))),
+        let term = app(
+            app(
+                app(abs("x", abs("y", abs("z", var("y")))), var("a")),
+                var("b"),
+            ),
+            var("c"),
         );
-        let expected = "(λx. (λy. (λz. x y z)))";
+        let expected = "(λx. λy. λz. y) a b c";
         let pp = pretty_print(&term);
         assert_eq!(pp, expected);
     }
 
+    #[test]
+    fn blub() {
+        let term = app(app(abs("x", abs("y", var("x"))), var("a")), var("b"));
+        let expected = "(λx. λy. x) a b";
+        let pp = pretty_print(&term);
+        assert_eq!(pp, expected);
+    }
+
+    #[test]
+    fn blub2() {
+        let term = app(
+            app(abs("x", var("x")), var("a")),
+            app(abs("x", var("x")), var("b")),
+        );
+        let expected = "(λx. x) a ((λx. x) b)";
+        let pp = pretty_print(&term);
+        assert_eq!(pp, expected);
+    }
+
+    #[test]
     fn test_y_combinator() {
-        let term_1 = abs("x", app(var("f"), app(var("x"), var("x"))));
-        let term = app(abs("f", term_1.clone()), term_1);
-        let expected = "(λf. (λx. f (x x)) (λx. f (x x)))";
+        let tmp = abs("x", app(var("f"), app(var("x"), var("x"))));
+        let term = abs("f", app(tmp.clone(), tmp));
+        let expected = "λf. (λx. f (x x)) (λx. f (x x))";
         let pp = pretty_print(&term);
         assert_eq!(pp, expected);
     }
